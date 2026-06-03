@@ -9,6 +9,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   listViews: () => ipcRenderer.invoke('views:list'),
   createView: () => ipcRenderer.invoke('views:create'),
+  createViews: (options) => ipcRenderer.invoke('views:create-many', options),
   getView: (id) => ipcRenderer.invoke('views:get', id),
   getViewPdf: (id) => ipcRenderer.invoke('views:pdf', id),
   getViewPdfPath: (id) => ipcRenderer.invoke('views:pdf-path', id),

@@ -2,6 +2,7 @@
 
 import { renderLibrary } from './library.js';
 import { renderViewer } from './viewer.js';
+import { isOverlayOpen } from './ui.js';
 
 const root = document.getElementById('root');
 let activeToast = null;
@@ -89,8 +90,14 @@ async function showLibrary() {
 
   renderLibrary(root, views, {
     onCreate: async () => {
-      const view = await window.api.createView();
-      if (view) showViewer(view.id);
+      const created = await window.api.createViews();
+      if (!created?.length) return;
+      if (created.length === 1) {
+        showViewer(created[0].id);
+        return;
+      }
+      await showLibrary();
+      showToast(`Imported ${created.length} view${created.length === 1 ? '' : 's'}.`);
     },
     onOpen: (id) => showViewer(id),
     onDelete: async (id) => {
@@ -180,6 +187,16 @@ async function showLibrary() {
         await showLibrary();
       });
     },
+    onImportFiles: async (paths, category = '') => {
+      const created = await window.api.createViews({ filePaths: paths, category });
+      if (!created?.length) return;
+      await showLibrary();
+      showToast(
+        `Imported ${created.length} PDF${created.length === 1 ? '' : 's'}${
+          category ? ` to ${category}` : ''
+        }.`
+      );
+    },
     onRevealPdf: (id) => window.api.revealViewPdf(id),
     onExportMetadata: async () => {
       const result = await window.api.exportMetadata();
@@ -259,9 +276,22 @@ function setupChrome() {
   window.api.isFullscreen().then(reflectFull);
 
   document.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented || isOverlayOpen()) return;
+
     if (e.key === 'F11') {
       e.preventDefault();
-      window.api.toggleFullscreen();
+      window.api.isFullscreen().then((isFull) => {
+        if (!isFull) window.api.toggleFullscreen();
+      });
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      window.api.isFullscreen().then((isFull) => {
+        if (!isFull) return;
+        e.preventDefault();
+        window.api.toggleFullscreen();
+      });
     }
   });
 }

@@ -482,6 +482,21 @@ function pruneSelection(views) {
   }
 }
 
+function hasInternalViewDrag(dataTransfer) {
+  return Boolean(dataTransfer?.types?.includes('text/plain'));
+}
+
+function hasFileDrag(dataTransfer) {
+  return Boolean(dataTransfer?.types?.includes('Files'));
+}
+
+function getDroppedPdfPaths(dataTransfer) {
+  if (!dataTransfer?.files?.length) return [];
+  return Array.from(dataTransfer.files)
+    .map((file) => file.path)
+    .filter((p) => typeof p === 'string' && p.toLowerCase().endsWith('.pdf'));
+}
+
 function installDropTarget(section, grid, category, context) {
   let dragDepth = 0;
 
@@ -496,19 +511,22 @@ function installDropTarget(section, grid, category, context) {
   };
 
   const onDragEnter = (e) => {
-    if (!e.dataTransfer?.types.includes('text/plain') || libraryState.selectionMode) return;
+    if (libraryState.selectionMode) return;
+    if (!hasInternalViewDrag(e.dataTransfer) && !hasFileDrag(e.dataTransfer)) return;
     dragDepth += 1;
     setActive(true);
   };
 
   const onDragOver = (e) => {
-    if (!e.dataTransfer?.types.includes('text/plain') || libraryState.selectionMode) return;
+    if (libraryState.selectionMode) return;
+    if (!hasInternalViewDrag(e.dataTransfer) && !hasFileDrag(e.dataTransfer)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.dataTransfer.dropEffect = hasFileDrag(e.dataTransfer) ? 'copy' : 'move';
   };
 
   const onDragLeave = (e) => {
-    if (!e.dataTransfer?.types.includes('text/plain') || libraryState.selectionMode) return;
+    if (libraryState.selectionMode) return;
+    if (!hasInternalViewDrag(e.dataTransfer) && !hasFileDrag(e.dataTransfer)) return;
     dragDepth = Math.max(0, dragDepth - 1);
     if (dragDepth === 0 && !section.contains(e.relatedTarget)) {
       setActive(false);
@@ -516,11 +534,20 @@ function installDropTarget(section, grid, category, context) {
   };
 
   const onDrop = async (e) => {
-    if (!e.dataTransfer?.types.includes('text/plain') || libraryState.selectionMode) return;
+    if (libraryState.selectionMode) return;
     e.preventDefault();
-    const viewId = e.dataTransfer.getData('text/plain');
     clearDropState();
+
+    const paths = getDroppedPdfPaths(e.dataTransfer);
+    if (paths.length) {
+      await context.handlers.onImportFiles(paths, category);
+      return;
+    }
+
+    if (!hasInternalViewDrag(e.dataTransfer)) return;
+    const viewId = e.dataTransfer.getData('text/plain');
     if (!viewId) return;
+
     if (category === '') {
       await context.handlers.onRemoveCategory(viewId);
     } else {
@@ -555,19 +582,22 @@ function buildAddCategoryDropZone(context) {
   };
 
   const onDragEnter = (e) => {
-    if (!e.dataTransfer?.types.includes('text/plain') || libraryState.selectionMode) return;
+    if (libraryState.selectionMode) return;
+    if (!hasInternalViewDrag(e.dataTransfer) && !hasFileDrag(e.dataTransfer)) return;
     dragDepth += 1;
     setActive(true);
   };
 
   const onDragOver = (e) => {
-    if (!e.dataTransfer?.types.includes('text/plain') || libraryState.selectionMode) return;
+    if (libraryState.selectionMode) return;
+    if (!hasInternalViewDrag(e.dataTransfer) && !hasFileDrag(e.dataTransfer)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.dataTransfer.dropEffect = 'copy';
   };
 
   const onDragLeave = (e) => {
-    if (!e.dataTransfer?.types.includes('text/plain') || libraryState.selectionMode) return;
+    if (libraryState.selectionMode) return;
+    if (!hasInternalViewDrag(e.dataTransfer) && !hasFileDrag(e.dataTransfer)) return;
     dragDepth = Math.max(0, dragDepth - 1);
     if (dragDepth === 0 && !section.contains(e.relatedTarget)) {
       setActive(false);
@@ -575,11 +605,9 @@ function buildAddCategoryDropZone(context) {
   };
 
   const onDrop = async (e) => {
-    if (!e.dataTransfer?.types.includes('text/plain') || libraryState.selectionMode) return;
+    if (libraryState.selectionMode) return;
     e.preventDefault();
-    const viewId = e.dataTransfer.getData('text/plain');
     clearDropState();
-    if (!viewId) return;
 
     const name = await promptDialog({
       title: 'Add category',
@@ -587,9 +615,18 @@ function buildAddCategoryDropZone(context) {
       value: '',
       confirmLabel: 'Create',
     });
-    if (name) {
-      await context.handlers.onSetCategory(viewId, name);
+    if (!name) return;
+
+    const paths = getDroppedPdfPaths(e.dataTransfer);
+    if (paths.length) {
+      await context.handlers.onImportFiles(paths, name);
+      return;
     }
+
+    if (!hasInternalViewDrag(e.dataTransfer)) return;
+    const viewId = e.dataTransfer.getData('text/plain');
+    if (!viewId) return;
+    await context.handlers.onSetCategory(viewId, name);
   };
 
   zone.addEventListener('dragenter', onDragEnter);

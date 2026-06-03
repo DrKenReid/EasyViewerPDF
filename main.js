@@ -45,33 +45,63 @@ async function listViews() {
   return views;
 }
 
-async function createView() {
+function normalisePdfPaths(paths) {
+  if (!Array.isArray(paths)) return [];
+  const unique = new Set();
+  for (const item of paths) {
+    if (typeof item !== 'string') continue;
+    const full = path.resolve(item);
+    if (path.extname(full).toLowerCase() !== '.pdf') continue;
+    unique.add(full);
+  }
+  return [...unique];
+}
+
+async function createViews(options = {}) {
+  const category = typeof options?.category === 'string' ? options.category.trim() : '';
+  let filePaths = normalisePdfPaths(options?.filePaths);
+
   await ensureLibrary();
-  const result = await dialog.showOpenDialog({
-    title: 'Choose a PDF',
-    properties: ['openFile'],
-    filters: [{ name: 'PDF documents', extensions: ['pdf'] }],
-  });
-  if (result.canceled || result.filePaths.length === 0) return null;
 
-  const source = result.filePaths[0];
-  const id = crypto.randomUUID();
-  const dir = path.join(libraryDir(), id);
-  await fs.mkdir(dir, { recursive: true });
+  if (filePaths.length === 0) {
+    const result = await dialog.showOpenDialog({
+      title: 'Choose PDF files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'PDF documents', extensions: ['pdf'] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return [];
+    filePaths = normalisePdfPaths(result.filePaths);
+  }
 
-  // Copy (not move) so the view keeps working even if the user later deletes
-  // or moves their original file, without destructively touching their copy.
-  await fs.copyFile(source, path.join(dir, 'source.pdf'));
+  const created = [];
+  for (const source of filePaths) {
+    const id = crypto.randomUUID();
+    const dir = path.join(libraryDir(), id);
+    await fs.mkdir(dir, { recursive: true });
 
-  const meta = {
-    id,
-    name: path.basename(source, path.extname(source)) || 'Untitled',
-    createdAt: new Date().toISOString(),
-    pdfFile: 'source.pdf',
-    layout: { cols: 2, rows: 1, groupScale: 1, overrides: {} },
-  };
-  await writeView(meta);
-  return meta;
+    // Copy (not move) so the view keeps working even if the user later deletes
+    // or moves their original file, without destructively touching their copy.
+    await fs.copyFile(source, path.join(dir, 'source.pdf'));
+
+    const meta = {
+      id,
+      name: path.basename(source, path.extname(source)) || 'Untitled',
+      createdAt: new Date().toISOString(),
+      pdfFile: 'source.pdf',
+      layout: { cols: 2, rows: 1, groupScale: 1, overrides: {} },
+    };
+    if (category) meta.category = category;
+
+    await writeView(meta);
+    created.push(meta);
+  }
+
+  return created;
+}
+
+async function createView() {
+  const created = await createViews();
+  return created[0] || null;
 }
 
 async function getViewPdf(id) {
@@ -188,6 +218,7 @@ async function deleteView(id) {
 function registerIpc() {
   ipcMain.handle('views:list', () => listViews());
   ipcMain.handle('views:create', () => createView());
+  ipcMain.handle('views:create-many', (_e, options) => createViews(options));
   ipcMain.handle('views:get', (_e, id) => readView(id));
   ipcMain.handle('views:pdf', (_e, id) => getViewPdf(id));
   ipcMain.handle('views:pdf-path', (_e, id) => getViewPdfPath(id));

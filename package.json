@@ -1,6 +1,6 @@
 {
   "name": "easyviewerpdf",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Open a PDF, split it into pages, and view multiple pages side by side.",
   "main": "main.js",
   "scripts": {

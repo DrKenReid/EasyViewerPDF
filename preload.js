@@ -1,19 +1,33 @@
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 /**
  * Minimal, explicit bridge between the renderer UI and the file-system backed
  * library in the main process. Everything is promise-based.
  */
 contextBridge.exposeInMainWorld('api', {
+  // Electron 32+ removed File.path; webUtils.getPathForFile is the supported
+  // way to resolve the absolute path of a dropped/selected file.
+  getPathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
+  },
   listViews: () => ipcRenderer.invoke('views:list'),
-  createView: () => ipcRenderer.invoke('views:create'),
   createViews: (options) => ipcRenderer.invoke('views:create-many', options),
   getView: (id) => ipcRenderer.invoke('views:get', id),
   getViewPdf: (id) => ipcRenderer.invoke('views:pdf', id),
-  getViewPdfPath: (id) => ipcRenderer.invoke('views:pdf-path', id),
   revealViewPdf: (id) => ipcRenderer.invoke('views:reveal-pdf', id),
+  // Tag registry + library preferences.
+  getLibraryConfig: () => ipcRenderer.invoke('library:config'),
+  createTag: (def) => ipcRenderer.invoke('tags:create', def),
+  updateTag: (id, def) => ipcRenderer.invoke('tags:update', id, def),
+  deleteTag: (id) => ipcRenderer.invoke('tags:delete', id),
+  reorderTags: (ids) => ipcRenderer.invoke('tags:reorder', ids),
+  setSectionSort: (value) => ipcRenderer.invoke('library:set-section-sort', value),
   copyViewPdfPath: (id) => ipcRenderer.invoke('views:copy-pdf-path', id),
   restoreView: (snapshot) => ipcRenderer.invoke('views:restore', snapshot),
   updateView: (id, patch) => ipcRenderer.invoke('views:update', id, patch),

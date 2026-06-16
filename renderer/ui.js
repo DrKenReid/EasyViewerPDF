@@ -142,6 +142,95 @@ export function promptDialog({ title, message, value = '', confirmLabel = 'Save'
   });
 }
 
+// A curated 10-color palette keeps color tags consistent with the dark theme.
+export const TAG_COLORS = [
+  '#5aa7ff', '#4fd1c5', '#7bd88f', '#b6d94c', '#e0b341',
+  '#f5854f', '#f06d6d', '#d479e8', '#8b8bf0', '#9aa4b2',
+];
+
+/**
+ * Edit a tag: name (optional) plus an optional color from a preset palette or a
+ * custom picker. A tag must end up with a name or a color.
+ * @returns {Promise<{name: string, color: string}|null>}
+ */
+export function tagDialog({ title = 'New tag', name = '', color = '' } = {}) {
+  return new Promise((resolve) => {
+    let selectedColor = color;
+
+    const body = el('div', 'tag-dialog');
+
+    const nameInput = el('input', 'modal-input');
+    nameInput.type = 'text';
+    nameInput.value = name;
+    nameInput.placeholder = 'Tag name (optional)';
+    nameInput.setAttribute('aria-label', 'Tag name');
+    body.appendChild(nameInput);
+
+    body.appendChild(el('p', 'tag-dialog-label', 'Color'));
+
+    const grid = el('div', 'tag-color-grid');
+    const swatches = [];
+
+    const ok = el('button', 'btn btn-primary');
+    ok.type = 'button';
+    ok.textContent = 'Save';
+
+    const refresh = () => {
+      for (const sw of swatches) sw.classList.toggle('is-selected', sw.dataset.color === selectedColor);
+      ok.disabled = !nameInput.value.trim() && !selectedColor;
+    };
+
+    const makeSwatch = (value, label, extraClass = '') => {
+      const sw = el('button', 'tag-color-swatch' + (extraClass ? ' ' + extraClass : ''));
+      sw.type = 'button';
+      sw.dataset.color = value;
+      sw.title = label;
+      sw.setAttribute('aria-label', label);
+      if (value) sw.style.background = value;
+      sw.addEventListener('click', () => {
+        selectedColor = value;
+        refresh();
+      });
+      swatches.push(sw);
+      grid.appendChild(sw);
+      return sw;
+    };
+
+    makeSwatch('', 'No color', 'tag-color-none');
+    for (const value of TAG_COLORS) makeSwatch(value, value);
+
+    body.appendChild(grid);
+
+    nameInput.addEventListener('input', refresh);
+
+    const cancel = el('button', 'btn');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+
+    const overlay = openModal({ title, body, actions: [cancel, ok], initialFocus: nameInput });
+    refresh();
+
+    const finish = (value) => {
+      closeModal();
+      resolve(value);
+    };
+    const submit = () => {
+      const trimmed = nameInput.value.trim();
+      if (!trimmed && !selectedColor) return;
+      finish({ name: trimmed, color: selectedColor });
+    };
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submit();
+      }
+    });
+    cancel.addEventListener('click', () => finish(null));
+    ok.addEventListener('click', submit);
+    overlay.addEventListener('dismiss', () => finish(null));
+  });
+}
+
 let activeMenu = null;
 
 /**

@@ -86,20 +86,29 @@ async function restoreSnapshots(snapshots) {
 
 async function showLibrary() {
   const scrollTop = getLibraryScrollTop();
-  const views = await window.api.listViews();
+  const [views, config] = await Promise.all([window.api.listViews(), window.api.getLibraryConfig()]);
 
-  renderLibrary(root, views, {
-    onCreate: async () => {
-      const created = await window.api.createViews();
-      if (!created?.length) return;
-      if (created.length === 1) {
-        showViewer(created[0].id);
-        return;
+  // Add/remove a tag id on a view, returning the next tags array.
+  const withTag = (tags, tagId) => (tags.includes(tagId) ? tags : [...tags, tagId]);
+  const withoutTag = (tags, tagId) => tags.filter((t) => t !== tagId);
+
+  renderLibrary(root, views, config, {
+    onCreate: async (tags = []) => {
+      try {
+        const created = await window.api.createViews({ tags });
+        if (!created?.length) return;
+        if (created.length === 1) {
+          showViewer(created[0].id);
+          return;
+        }
+        await showLibrary();
+        showToast(`Imported ${created.length} view${created.length === 1 ? '' : 's'}.`);
+      } catch (error) {
+        console.error(error);
+        showToast('Import failed. Please try again.', undefined, undefined, 5000);
       }
-      await showLibrary();
-      showToast(`Imported ${created.length} view${created.length === 1 ? '' : 's'}.`);
     },
-    onOpen: (id) => showViewer(id),
+    onOpen: (id) => showViewer(id, true),
     onDelete: async (id) => {
       const snapshot = await captureViewSnapshot(id);
       await window.api.deleteView(id);
@@ -118,63 +127,86 @@ async function showLibrary() {
         await showLibrary();
       });
     },
-    onSetCategory: async (id, category) => {
+    onAddTag: async (id, tagId) => {
       const previous = await window.api.getView(id);
-      await window.api.updateView(id, { category });
+      await window.api.updateView(id, { tags: withTag(previous.tags || [], tagId) });
       await showLibrary();
-      showToast('Category updated.', 'Undo', async () => {
-        await window.api.updateView(id, { category: (previous.category || '').trim() });
+      showToast('Tag added.', 'Undo', async () => {
+        await window.api.updateView(id, { tags: previous.tags || [] });
         await showLibrary();
       });
     },
-    onRemoveCategory: async (id) => {
+    onRemoveTag: async (id, tagId) => {
       const previous = await window.api.getView(id);
-      await window.api.updateView(id, { category: '' });
+      await window.api.updateView(id, { tags: withoutTag(previous.tags || [], tagId) });
       await showLibrary();
-      showToast('Category removed.', 'Undo', async () => {
-        await window.api.updateView(id, { category: (previous.category || '').trim() });
+      showToast('Tag removed.', 'Undo', async () => {
+        await window.api.updateView(id, { tags: previous.tags || [] });
         await showLibrary();
       });
     },
-    onRenameCategory: async (oldName, newName) => {
-      const all = await window.api.listViews();
-      const targets = all.filter((v) => (v.category || '').trim() === oldName).map((v) => v.id);
-      await Promise.all(targets.map((id) => window.api.updateView(id, { category: newName })));
+    onSetTags: async (id, tags) => {
+      const previous = await window.api.getView(id);
+      await window.api.updateView(id, { tags });
       await showLibrary();
-      showToast('Category renamed.', 'Undo', async () => {
-        await Promise.all(targets.map((id) => window.api.updateView(id, { category: oldName })));
+      showToast('Tags updated.', 'Undo', async () => {
+        await window.api.updateView(id, { tags: previous.tags || [] });
         await showLibrary();
       });
     },
-    onDeleteCategory: async (name) => {
-      const all = await window.api.listViews();
-      const targets = all.filter((v) => (v.category || '').trim() === name).map((v) => v.id);
-      await Promise.all(targets.map((id) => window.api.updateView(id, { category: '' })));
-      await showLibrary();
-      showToast('Category deleted.', 'Undo', async () => {
-        await Promise.all(targets.map((id) => window.api.updateView(id, { category: name })));
+    onCreateTag: async (def) => {
+      try {
+        const tag = await window.api.createTag(def);
         await showLibrary();
-      });
+        return tag;
+      } catch (error) {
+        console.error(error);
+        showToast('Could not create tag.', undefined, undefined, 4000);
+        return null;
+      }
     },
-    onBulkSetCategory: async (ids, category) => {
+    onUpdateTag: async (id, def) => {
+      await window.api.updateTag(id, def);
+      await showLibrary();
+      showToast('Tag updated.');
+    },
+    onDeleteTag: async (id) => {
+      await window.api.deleteTag(id);
+      await showLibrary();
+      showToast('Tag deleted.');
+    },
+    onReorderTags: async (ids) => {
+      await window.api.reorderTags(ids);
+      await showLibrary();
+    },
+    onSetSectionSort: async (value) => {
+      await window.api.setSectionSort(value);
+      await showLibrary();
+    },
+    onBulkAddTag: async (ids, tagId) => {
       const previous = await Promise.all(ids.map((id) => window.api.getView(id)));
-      await Promise.all(ids.map((id) => window.api.updateView(id, { category })));
+      await Promise.all(previous.map((v) => window.api.updateView(v.id, { tags: withTag(v.tags || [], tagId) })));
       await showLibrary();
-      showToast('Moved selected views.', 'Undo', async () => {
-        await Promise.all(
-          previous.map((view) => window.api.updateView(view.id, { category: (view.category || '').trim() }))
-        );
+      showToast('Tagged selected views.', 'Undo', async () => {
+        await Promise.all(previous.map((v) => window.api.updateView(v.id, { tags: v.tags || [] })));
         await showLibrary();
       });
     },
-    onBulkRemoveCategory: async (ids) => {
+    onBulkRemoveTag: async (ids, tagId) => {
       const previous = await Promise.all(ids.map((id) => window.api.getView(id)));
-      await Promise.all(ids.map((id) => window.api.updateView(id, { category: '' })));
+      await Promise.all(previous.map((v) => window.api.updateView(v.id, { tags: withoutTag(v.tags || [], tagId) })));
       await showLibrary();
-      showToast('Removed categories from selected views.', 'Undo', async () => {
-        await Promise.all(
-          previous.map((view) => window.api.updateView(view.id, { category: (view.category || '').trim() }))
-        );
+      showToast('Removed tag from selected views.', 'Undo', async () => {
+        await Promise.all(previous.map((v) => window.api.updateView(v.id, { tags: v.tags || [] })));
+        await showLibrary();
+      });
+    },
+    onBulkClearTags: async (ids) => {
+      const previous = await Promise.all(ids.map((id) => window.api.getView(id)));
+      await Promise.all(previous.map((v) => window.api.updateView(v.id, { tags: [] })));
+      await showLibrary();
+      showToast('Cleared tags from selected views.', 'Undo', async () => {
+        await Promise.all(previous.map((v) => window.api.updateView(v.id, { tags: v.tags || [] })));
         await showLibrary();
       });
     },
@@ -187,15 +219,16 @@ async function showLibrary() {
         await showLibrary();
       });
     },
-    onImportFiles: async (paths, category = '') => {
-      const created = await window.api.createViews({ filePaths: paths, category });
-      if (!created?.length) return;
-      await showLibrary();
-      showToast(
-        `Imported ${created.length} PDF${created.length === 1 ? '' : 's'}${
-          category ? ` to ${category}` : ''
-        }.`
-      );
+    onImportFiles: async (paths, tags = []) => {
+      try {
+        const created = await window.api.createViews({ filePaths: paths, tags });
+        if (!created?.length) return;
+        await showLibrary();
+        showToast(`Imported ${created.length} PDF${created.length === 1 ? '' : 's'}.`);
+      } catch (error) {
+        console.error(error);
+        showToast('Import failed. Please try again.', undefined, undefined, 5000);
+      }
     },
     onRevealPdf: (id) => window.api.revealViewPdf(id),
     onExportMetadata: async () => {
@@ -216,8 +249,9 @@ async function showLibrary() {
   root.focus();
 }
 
-async function showViewer(id) {
+async function showViewer(id, stampOpened = false) {
   const [view, bytes] = await Promise.all([window.api.getView(id), window.api.getViewPdf(id)]);
+  if (stampOpened) window.api.updateView(id, { lastOpenedAt: new Date().toISOString() });
   await renderViewer(root, view, bytes, {
     onBack: showLibrary,
     onChange: (patch) => window.api.updateView(id, patch),

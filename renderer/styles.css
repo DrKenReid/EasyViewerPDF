@@ -252,8 +252,9 @@ body.is-fullscreen .titlebar {
 .library-section {
   margin-bottom: 30px;
 }
-.library-section.is-drop-target .section-title {
+.library-section.is-drop-target .section-toggle {
   color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 .section-title {
   font-size: 14px;
@@ -276,11 +277,28 @@ body.is-fullscreen .titlebar {
   border-radius: var(--radius);
 }
 
-.add-category-section {
+/* Marquee (drag-to-select) */
+.marquee {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: rgba(90, 167, 255, 0.15);
+  border-radius: 4px;
+}
+.tile-view.is-marquee {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+body.is-marqueeing {
+  user-select: none;
+}
+
+.add-tag-section {
   margin-top: 8px;
   padding-top: 6px;
 }
-.add-category-dropzone {
+.add-tag-dropzone {
   width: 100%;
   min-height: 72px;
   display: grid;
@@ -290,10 +308,11 @@ body.is-fullscreen .titlebar {
   background: linear-gradient(180deg, rgba(90, 167, 255, 0.04), rgba(90, 167, 255, 0.08));
   color: var(--text-muted);
   font: inherit;
-  cursor: default;
+  cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
-.add-category-dropzone.is-drop-target {
+.add-tag-dropzone:hover,
+.add-tag-dropzone.is-drop-target {
   border-color: var(--accent);
   background: linear-gradient(180deg, rgba(90, 167, 255, 0.12), rgba(90, 167, 255, 0.2));
   color: var(--text);
@@ -401,7 +420,16 @@ body.is-fullscreen .titlebar {
   gap: 8px;
   flex-wrap: wrap;
 }
-.tile-tag {
+.tile-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-weight: 600;
   color: var(--accent);
@@ -409,6 +437,18 @@ body.is-fullscreen .titlebar {
   border: 1px solid rgba(90, 167, 255, 0.35);
   border-radius: 999px;
   padding: 1px 8px;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A color-only tag is a bare swatch, no text. */
+.tag-chip-color {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 .tile-actions {
   position: absolute;
@@ -753,6 +793,100 @@ body.is-fullscreen .titlebar {
 .section-tools {
   display: flex;
   gap: 6px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.section-title-row:hover .section-tools,
+.section-toggle:focus-visible + .section-tools {
+  opacity: 1;
+}
+
+/* Collapsible section header */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0 0 8px;
+  margin: 0 2px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.section-toggle .section-title {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.section-caret {
+  font-size: 11px;
+  transition: transform 0.12s ease;
+}
+.library-section.is-collapsed .section-caret {
+  transform: rotate(-90deg);
+}
+.section-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  background: var(--bg-elevated-2);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.library-section.is-collapsed .library-grid {
+  display: none;
+}
+
+/* Manual section reordering */
+.library-section.is-reorderable .section-toggle {
+  cursor: grab;
+}
+.library-section.is-reordering {
+  opacity: 0.5;
+}
+.library-section.is-reorder-target .section-toggle {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Tag editor dialog */
+.tag-dialog-label {
+  margin: 14px 0 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.tag-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tag-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--bg-elevated-2);
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+}
+.tag-color-swatch.is-selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
+}
+.tag-color-none {
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+.tag-color-none::after {
+  content: '∅';
+  font-size: 14px;
 }
 
 .tile-view.is-selected {

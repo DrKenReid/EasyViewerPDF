@@ -4,6 +4,19 @@ const { app, BrowserWindow, Menu, ipcMain, dialog, shell, clipboard } = require(
 const path = require('path');
 const fs = require('fs/promises');
 const crypto = require('crypto');
+const {
+  SECTION_SORTS,
+  assertViewId,
+  normaliseTag,
+  normalisePdfPaths,
+  sanitizeTagIds,
+  sanitizeMetadataPatch,
+} = require('./lib/metadata');
+
+// Allow tests and screenshot tooling to point the app at a throwaway profile.
+if (process.env.EASYVIEWERPDF_USER_DATA) {
+  app.setPath('userData', path.resolve(process.env.EASYVIEWERPDF_USER_DATA));
+}
 
 /**
  * The library lives in the per-user app data folder so that views (and their
@@ -19,7 +32,6 @@ function configPath() {
   return path.join(libraryDir(), 'library.json');
 }
 
-const SECTION_SORTS = ['manual', 'recent', 'alpha'];
 const DEFAULT_CONFIG = { version: 1, sectionSort: 'manual', tags: [] };
 
 async function ensureLibrary() {
@@ -47,15 +59,6 @@ async function writeConfig(config) {
   const payload = { version: 1, sectionSort: config.sectionSort, tags };
   await fs.writeFile(configPath(), JSON.stringify(payload, null, 2), 'utf8');
   return payload;
-}
-
-function normaliseTag(tag) {
-  const id = typeof tag?.id === 'string' && tag.id ? tag.id : '';
-  if (!id) return null;
-  const name = typeof tag?.name === 'string' ? tag.name.trim() : '';
-  const color = typeof tag?.color === 'string' && tag.color.trim() ? tag.color.trim() : '';
-  if (!name && !color) return null;
-  return { id, name, color, order: Number.isFinite(tag?.order) ? tag.order : 0 };
 }
 
 // One-time conversion of the legacy single-`category` model into the tag
@@ -101,7 +104,7 @@ async function migrateLibrary() {
 }
 
 async function readView(id) {
-  const file = path.join(libraryDir(), id, 'view.json');
+  const file = path.join(libraryDir(), assertViewId(id), 'view.json');
   const meta = JSON.parse(await fs.readFile(file, 'utf8'));
   if (!Array.isArray(meta.tags)) meta.tags = [];
   return meta;
@@ -126,30 +129,6 @@ async function listViews() {
   }
   views.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   return views;
-}
-
-function normalisePdfPaths(paths) {
-  if (!Array.isArray(paths)) return [];
-  const unique = new Set();
-  for (const item of paths) {
-    if (typeof item !== 'string') continue;
-    const full = path.resolve(item);
-    if (path.extname(full).toLowerCase() !== '.pdf') continue;
-    unique.add(full);
-  }
-  return [...unique];
-}
-
-function sanitizeTagIds(value) {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set();
-  const out = [];
-  for (const item of value) {
-    if (typeof item !== 'string' || !item || seen.has(item)) continue;
-    seen.add(item);
-    out.push(item);
-  }
-  return out;
 }
 
 async function createViews(options = {}) {
@@ -195,21 +174,11 @@ async function createViews(options = {}) {
 }
 
 async function getViewPdf(id) {
-  const file = path.join(libraryDir(), id, 'source.pdf');
-  return await fs.readFile(file);
+  return await fs.readFile(getViewPdfPath(id));
 }
 
 function getViewPdfPath(id) {
-  return path.join(libraryDir(), id, 'source.pdf');
-}
-
-function sanitizeMetadataPatch(patch) {
-  const next = {};
-  if (typeof patch?.name === 'string' && patch.name.trim()) next.name = patch.name.trim();
-  if (Array.isArray(patch?.tags)) next.tags = sanitizeTagIds(patch.tags);
-  if (typeof patch?.lastOpenedAt === 'string') next.lastOpenedAt = patch.lastOpenedAt;
-  if (patch?.layout && typeof patch.layout === 'object') next.layout = patch.layout;
-  return next;
+  return path.join(libraryDir(), assertViewId(id), 'source.pdf');
 }
 
 // --- Tag registry CRUD -----------------------------------------------------
@@ -399,7 +368,7 @@ async function restoreView(snapshot) {
     throw new Error('Invalid restore snapshot.');
   }
 
-  const dir = path.join(libraryDir(), id);
+  const dir = path.join(libraryDir(), assertViewId(id));
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, 'source.pdf'), Buffer.from(pdfBase64, 'base64'));
   await writeView(snapshot.meta);
@@ -418,7 +387,7 @@ async function updateView(id, patch) {
 }
 
 async function deleteView(id) {
-  await fs.rm(path.join(libraryDir(), id), { recursive: true, force: true });
+  await fs.rm(path.join(libraryDir(), assertViewId(id)), { recursive: true, force: true });
   return true;
 }
 

@@ -1,6 +1,6 @@
 // Application entry point and simple router between the library and viewer.
 
-import { renderLibrary } from './library.js';
+import { renderLibrary, removeLibraryShortcuts } from './library.js';
 import { renderViewer } from './viewer.js';
 import { isOverlayOpen } from './ui.js';
 
@@ -39,6 +39,8 @@ function showToast(message, actionLabel = '', onAction = null, timeout = 5000) {
 
   const toast = document.createElement('div');
   toast.className = 'toast';
+  // Announce toasts to assistive tech; role="status" implies aria-live="polite".
+  toast.setAttribute('role', 'status');
 
   const text = document.createElement('span');
   text.className = 'toast-text';
@@ -250,12 +252,20 @@ async function showLibrary() {
 }
 
 async function showViewer(id, stampOpened = false) {
-  const [view, bytes] = await Promise.all([window.api.getView(id), window.api.getViewPdf(id)]);
-  if (stampOpened) window.api.updateView(id, { lastOpenedAt: new Date().toISOString() });
-  await renderViewer(root, view, bytes, {
-    onBack: showLibrary,
-    onChange: (patch) => window.api.updateView(id, patch),
-  });
+  try {
+    const [view, bytes] = await Promise.all([window.api.getView(id), window.api.getViewPdf(id)]);
+    removeLibraryShortcuts();
+    if (stampOpened) {
+      window.api.updateView(id, { lastOpenedAt: new Date().toISOString() }).catch(console.error);
+    }
+    await renderViewer(root, view, bytes, {
+      onBack: showLibrary,
+      onChange: (patch) => window.api.updateView(id, patch).catch(console.error),
+    });
+  } catch (error) {
+    console.error(error);
+    showToast('Could not open this view.', undefined, undefined, 5000);
+  }
 }
 
 // --- Window chrome: custom title bar + fullscreen toggle -------------------

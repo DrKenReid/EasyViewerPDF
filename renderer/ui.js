@@ -5,6 +5,7 @@
 import { el, clear } from './dom.js';
 
 let activeOverlay = null;
+let modalCounter = 0;
 
 function openModal({ title, body, actions, initialFocus }) {
   closeModal();
@@ -15,7 +16,7 @@ function openModal({ title, body, actions, initialFocus }) {
   dialog.setAttribute('aria-modal', 'true');
 
   const heading = el('h2', 'modal-title', title);
-  const headingId = 'modal-title';
+  const headingId = `modal-title-${++modalCounter}`;
   heading.id = headingId;
   dialog.setAttribute('aria-labelledby', headingId);
   dialog.appendChild(heading);
@@ -287,6 +288,20 @@ export function openContextMenu(x, y, items) {
       e.preventDefault();
       e.stopPropagation();
       closeContextMenu();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+      const entries = [...menu.querySelectorAll('.context-item')];
+      if (!entries.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const current = entries.indexOf(document.activeElement);
+      let next;
+      if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = entries.length - 1;
+      else if (e.key === 'ArrowDown') next = current < 0 ? 0 : (current + 1) % entries.length;
+      else next = current <= 0 ? entries.length - 1 : current - 1;
+      entries[next].focus();
     }
   }
   menu._teardown = () => {

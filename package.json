@@ -1,15 +1,25 @@
 {
   "name": "easyviewerpdf",
   "version": "1.0.1",
-  "description": "Open a PDF, split it into pages, and view multiple pages side by side.",
+  "description": "Desktop app for keeping PDFs organized and easy to read, with a flexible side-by-side page grid.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test",
+    "lint": "node --experimental-vm-modules scripts/check-syntax.mjs",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win nsis"
   },
-  "author": "",
+  "author": "Ken Reid <ken@kenreid.co.uk>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DrKenReid/EasyViewerPDF.git"
+  },
+  "homepage": "https://github.com/DrKenReid/EasyViewerPDF#readme",
+  "bugs": {
+    "url": "https://github.com/DrKenReid/EasyViewerPDF/issues"
+  },
   "devDependencies": {
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8"
@@ -27,6 +37,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "lib/**/*",
       "renderer/**/*",
       "package.json",
       "!node_modules/@napi-rs/**",

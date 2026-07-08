@@ -26,7 +26,7 @@ export async function renderViewer(root, view, bytes, handlers) {
 
   const layout = normaliseLayout(view.layout);
   let baseWidth = 200; // recomputed from the stage size
-  let firstAspect = 0.7727; // A4 portrait fallback (w/h); refined after load
+  let firstAspect = 0.7727; // US Letter portrait fallback (w/h); refined after load
 
   // ---- Scaffolding -------------------------------------------------------
   const screen = el('div', 'viewer');
@@ -180,7 +180,8 @@ export async function renderViewer(root, view, bytes, handlers) {
       tile.frame.style.height = `${w / tile.aspect}px`;
     } catch {
       tile.rendered = false;
-      tile.canvasHost.firstChild && (tile.canvasHost.firstChild.textContent = '!');
+      const placeholder = tile.canvasHost.firstChild;
+      if (placeholder) placeholder.textContent = '!';
     }
   }
 

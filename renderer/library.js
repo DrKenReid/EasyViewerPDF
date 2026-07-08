@@ -25,16 +25,24 @@ const libraryState = {
 let removeShortcuts = null;
 
 /**
+ * Detach the library's document-level keyboard shortcuts. Must be called when
+ * navigating away from the library so its shortcuts do not fire in the viewer.
+ */
+export function removeLibraryShortcuts() {
+  if (removeShortcuts) {
+    removeShortcuts();
+    removeShortcuts = null;
+  }
+}
+
+/**
  * @param {HTMLElement} root
  * @param {Array} views
  * @param {{sectionSort: string, tags: Array}} config
  * @param {object} handlers
  */
 export function renderLibrary(root, views, config, handlers) {
-  if (removeShortcuts) {
-    removeShortcuts();
-    removeShortcuts = null;
-  }
+  removeLibraryShortcuts();
 
   pruneSelection(views);
   pruneThumbCache(views);
@@ -1175,7 +1183,19 @@ function installLibraryShortcuts(context) {
 
     if (e.key === 'Delete' && libraryState.selectionMode && libraryState.selectedIds.size) {
       e.preventDefault();
-      context.handlers.onBulkDelete([...libraryState.selectedIds]);
+      // Mirror the bulk-bar button: only visible selections, and confirm first.
+      const ids = [...libraryState.selectedIds].filter((id) => context.visibleViewIds.has(id));
+      if (!ids.length) return;
+      confirmDialog({
+        title: 'Delete views',
+        message: `Delete ${ids.length} selected view(s)?`,
+        confirmLabel: 'Delete',
+        danger: true,
+      }).then(async (ok) => {
+        if (!ok) return;
+        await context.handlers.onBulkDelete(ids);
+        libraryState.selectedIds.clear();
+      });
       return;
     }
   };

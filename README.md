@@ -14,17 +14,13 @@ even if you move or rename the original.
 
 ## Screenshots
 
-Real app screenshots using:
-- `quotes (3).pdf`
-- `Ken’s parents visiting May 2026.pdf`
-
 Library view:
 
 ![EasyViewerPDF library with imported PDFs](assets/screenshot-library.png)
 
 Viewer mode:
 
-![EasyViewerPDF viewer showing quotes (3).pdf pages](assets/screenshot-viewer.png)
+![EasyViewerPDF viewer showing pages side by side](assets/screenshot-viewer.png)
 
 ## How to use it
 
@@ -58,14 +54,17 @@ npm install
 npm start
 ```
 
-## Windows installer builds
+## Development
 
 ```powershell
-npm install
-npm run dist:win
+npm test         # unit tests (node:test, no extra dependencies)
+npm run lint     # syntax check of all first-party JS
+npm run dist:win # build the Windows installer into dist/
 ```
 
-The installer is written to `dist/` as a setup `.exe` file.
+Continuous integration runs the lint and test steps on every push, and
+pushing a `v*` tag builds the installer and attaches it to a GitHub Release.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Where your PDFs are stored
 
@@ -102,6 +101,8 @@ modules for the library and viewer screens.
 |------|----------------|
 | `main.js` | Electron main process + file-system backed library (IPC). |
 | `preload.js` | Secure `window.api` bridge. |
+| `lib/metadata.js` | Pure metadata validation helpers, shared with tests. |
+| `test/` | Unit tests, run with `npm test`. |
 | `renderer/app.js` | Routing between library and viewer. |
 | `renderer/library.js` | Library screen, search, categories, and thumbnails. |
 | `renderer/viewer.js` | Page grid, resizing, and layout controls. |
@@ -112,6 +113,4 @@ modules for the library and viewer screens.
 
 ## License
 
-Creative Commons Attribute License Non Commercial.
-
-linktr.ee/drkenreid
+[MIT](LICENSE) © Ken Reid — [linktr.ee/drkenreid](https://linktr.ee/drkenreid)
